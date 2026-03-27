@@ -1,10 +1,10 @@
-name = "l"
+name = "lencrypt"
 main = "index.js"
 compatibility_date = "2024-01-01"
 
 [[kv_namespaces]]
 binding = "URLS"
-id = "lencrypt"
+id = "d15bc981e3974bcfa84fd5f481f80281"
 
 [[routes]]
 pattern = "l.encrypt.click/*"
