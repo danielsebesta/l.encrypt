@@ -1,11 +1,11 @@
 name = "l"
-main = "src/index.js"
+main = "index.js"
 compatibility_date = "2024-01-01"
 
 [[kv_namespaces]]
 binding = "URLS"
 id = "lencrypt"
 
-routes = [
-  { pattern = "l.encrypt.click/*", zone_name = "encrypt.click" }
-]
+[[routes]]
+pattern = "l.encrypt.click/*"
+zone_name = "encrypt.click"
