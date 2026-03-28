@@ -2,12 +2,11 @@ const ALLOWED_DOMAINS = [
   "encrypt.click",
 ];
 
-
-const C = "bcdfghjkmnprstvz";  
-const V = "aeiou";             
-const MIN_PAIRS = 3;           
-const MAX_PAIRS = 8;           
-const ATTEMPTS_PER_LENGTH = 5;  
+const C = "bcdfghjkmnprstvz";
+const V = "aeiou";
+const MIN_PAIRS = 3;
+const MAX_PAIRS = 8;
+const ATTEMPTS_PER_LENGTH = 5;
 
 function generateSlug(pairs) {
   const bytes = new Uint8Array(pairs * 2);
@@ -28,9 +27,8 @@ async function findUniqueSlug(env) {
       if (!collision) return slug;
     }
   }
-  return null; 
+  return null;
 }
-
 
 function extractDomain(url) {
   try {
@@ -60,6 +58,14 @@ function json(data, status = 200) {
   });
 }
 
+async function hashUrl(url) {
+  const data = new TextEncoder().encode(url);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  const bytes = new Uint8Array(hash);
+  let hex = "";
+  for (const b of bytes) hex += b.toString(16).padStart(2, "0");
+  return hex.slice(0, 32);
+}
 
 async function handleShorten(request, env) {
   let body;
@@ -70,9 +76,7 @@ async function handleShorten(request, env) {
   }
 
   const url = (body.url || "").trim();
-  if (!url) {
-    return json({ error: "Missing 'url' field" }, 400);
-  }
+  if (!url) return json({ error: "Missing 'url' field" }, 400);
 
   try {
     new URL(url);
@@ -81,16 +85,12 @@ async function handleShorten(request, env) {
   }
 
   if (!isDomainAllowed(url)) {
-    return json(
-      {
-        error: "Domain not allowed",
-        allowed: ALLOWED_DOMAINS,
-      },
-      403
-    );
+    return json({ error: "Domain not allowed", allowed: ALLOWED_DOMAINS }, 403);
   }
 
-  const existingSlug = await env.URLS.get(`url:${url}`);
+  // Hash the URL for dedup key (KV keys max 512 bytes)
+  const urlHash = await hashUrl(url);
+  const existingSlug = await env.URLS.get(`h:${urlHash}`);
   if (existingSlug) {
     const base = new URL(request.url).origin;
     return json({
@@ -102,12 +102,10 @@ async function handleShorten(request, env) {
   }
 
   const slug = await findUniqueSlug(env);
-  if (!slug) {
-    return json({ error: "Failed to generate unique slug, try again" }, 500);
-  }
+  if (!slug) return json({ error: "Failed to generate unique slug" }, 500);
 
   await env.URLS.put(`slug:${slug}`, url);
-  await env.URLS.put(`url:${url}`, slug);
+  await env.URLS.put(`h:${urlHash}`, slug);
 
   const base = new URL(request.url).origin;
   return json(
@@ -144,11 +142,13 @@ async function handleInfo(request) {
   const base = new URL(request.url).origin;
   return json({
     name: "shrink",
-    description: "Privacy-first URL shortener. Pronounceable slugs. No logs, no tracking.",
+    description:
+      "Privacy-first URL shortener. Pronounceable slugs. No logs, no tracking.",
     endpoints: {
       "POST /api/shorten": {
         body: '{"url": "https://encrypt.click/u/#zSSYWjX4KL8gAhoeV"}',
-        returns: "short URL with pronounceable slug (deduplicates automatically)",
+        returns:
+          "short URL with pronounceable slug (deduplicates automatically)",
       },
       "GET /api/resolve/:slug": {
         returns: "original URL as JSON (no redirect)",
@@ -158,7 +158,8 @@ async function handleInfo(request) {
       },
     },
     allowed_domains: ALLOWED_DOMAINS,
-    example_slugs: "badoke, fumevi, tapenu → auto-grows: badokemu, fumeviha, ...",
+    example_slugs:
+      "badoke, fumevi, tapenu → auto-grows: badokemu, fumeviha, ...",
     curl_example: `curl -s -X POST ${base}/api/shorten -H 'Content-Type: application/json' -d '{"url":"https://encrypt.click/u/#zSSYWjX4KL8gAhoeV"}'`,
   });
 }
